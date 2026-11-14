@@ -184,10 +184,6 @@ Real-asset detection is 97–99%; on nine hand-labelled clips, shot boundaries r
 3. Decide: hard evidence like AIGC tags and frame cadence beats "looks like". Conflicts get flagged for the agent to check visually.
 4. Plan the remake: batch shots according to what the target video model can actually do, such as max clip length, multi-shot support and how many reference images it takes.
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
-
 ## FAQ
 
 <details>

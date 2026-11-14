@@ -184,10 +184,6 @@ La détection des assets réels atteint 97 à 99 % ; sur neuf clips annotés à 
 3. Décision : les preuves solides, comme les tags AIGC ou la cadence d'images, l'emportent sur le « ça ressemble à ». Les contradictions sont signalées pour que l'agent les vérifie à l'œil.
 4. Plan de remake : les plans sont regroupés en fonction de ce que le modèle vidéo visé sait vraiment faire (durée maximale d'un clip, prise en charge du multi-plan, nombre d'images de référence acceptées).
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
-
 ## FAQ
 
 <details>

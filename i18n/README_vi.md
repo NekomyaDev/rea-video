@@ -184,10 +184,6 @@ Nhận diện tư liệu thật đạt 97–99%; trên 9 clip gắn nhãn thủ 
 3. Kết luận: bằng chứng cứng như thẻ AIGC hay nhịp khung hình luôn được ưu tiên hơn cảm giác "trông giống". Những chỗ các nguồn cho kết quả trái ngược sẽ được đánh dấu để agent xem ảnh kiểm tra lại.
 4. Lên kế hoạch remake: gom nhóm các shot theo đúng giới hạn thực tế của model video mục tiêu — như thời lượng tối đa mỗi clip, khả năng xuất đa shot và số ảnh tham chiếu đầu vào.
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
-
 ## Câu hỏi thường gặp
 
 <details>

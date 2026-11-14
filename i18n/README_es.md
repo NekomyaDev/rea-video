@@ -184,10 +184,6 @@ La detección de material real acierta entre un 97 y un 99 %; en nueve clips ano
 3. Decidir: las pruebas objetivas, como las etiquetas AIGC o la cadencia de fotogramas, pesan más que un "parece que". Cuando hay contradicciones, se marcan para que el agente las revise a ojo.
 4. Planificar el remake: agrupa los planos según lo que de verdad puede hacer el modelo de vídeo que vayas a usar: duración máxima del clip, si admite varios planos seguidos y cuántas imágenes de referencia acepta.
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
-
 ## Preguntas frecuentes
 
 <details>

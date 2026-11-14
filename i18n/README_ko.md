@@ -184,10 +184,6 @@ rea-video는 무료 오픈소스입니다. 스폰서의 지원으로 꾸준히 �
 3. 판정: AIGC 태그나 프레임 케이던스 같은 확실한 근거가 "그래 보인다"보다 우선합니다. 근거끼리 부딪히면 표시해 두고 에이전트가 직접 보고 검토합니다.
 4. 리메이크 계획: 대상 영상 모델이 실제로 할 수 있는 범위(최대 클립 길이, 멀티샷 지원 여부, 레퍼런스 이미지를 몇 장까지 받는지 등)에 맞춰 샷을 묶습니다.
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
-
 ## FAQ
 
 <details>
