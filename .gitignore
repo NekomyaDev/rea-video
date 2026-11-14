@@ -17,3 +17,4 @@ eval/code_videos_holdout.yaml
 eval/particles.yaml
 eval/codegen/
 scripts/roundtrip_compare.py
+tests/
