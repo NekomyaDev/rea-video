@@ -124,12 +124,6 @@ def test_shot_detail_separates_seen_from_inferred(breakdown):
     assert "「制作方式」「素材来源」是工具推断的" in md
 
 
-def test_old_breakdown_evidence_is_split_by_reader_tag():
-    from rea_video.report import _split_evidence
-    seen, measured = _split_evidence({"evidence": ["24fps 源", "[VLM] 文字乱码", "[claude 看图] 手很自然"]})
-    assert seen == ["[VLM] 文字乱码", "[claude 看图] 手很自然"] and measured == ["24fps 源"]
-
-
 def test_html_is_rendered_from_markdown(breakdown):
     b, _ = breakdown
     set_lang("zh")

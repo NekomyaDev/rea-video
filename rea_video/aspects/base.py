@@ -111,11 +111,11 @@ def _fields_of(answers, aspect: str) -> dict:
 
 
 def seen(shot: dict, aspect: str, field_key: str) -> dict[str, str]:
-    """{"agent": ..., "vlm": ...} for one field of one shot. Also reads the older flat `cinematography` answers."""
+    """{"agent": ..., "vlm": ...} for one field of one shot."""
     out = {}
     for src, rk in (("agent", "review"), ("vlm", "vlm")):
         r = shot.get(rk) or {}
-        v = _fields_of(r.get("aspects"), aspect).get(field_key) or _fields_of(r, "cinematography").get(field_key)
+        v = _fields_of(r.get("aspects"), aspect).get(field_key)
         if v and str(v).strip().lower() not in ("不适用", "unknown", "无法判断", "n/a", "not applicable"):
             out[src] = str(v).strip()
     return out

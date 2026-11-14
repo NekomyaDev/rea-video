@@ -941,17 +941,9 @@ def _questions_md(b: dict) -> list[str]:
     return L
 
 
-def _split_evidence(base: dict) -> tuple[list[str], list[str]]:
-    """(visible on screen, tool basis). Older breakdowns only carry the merged list: split it by its reader tags."""
-    if "seen" in base or "measured" in base:
-        return list(base.get("seen") or []), list(base.get("measured") or [])
-    seen = [e for e in base.get("evidence", []) if e.startswith("[VLM]") or re.match(r"\[[^\]]+ (看图|review)\]", e)]
-    return seen, [e for e in base.get("evidence", []) if e not in seen]
-
-
 def _shot_detail_md(r: dict) -> list[str]:
     base = r["base"]
-    seen, measured = _split_evidence(base)
+    seen, measured = list(base.get("seen") or []), list(base.get("measured") or [])
     L = [f"![{r['id']}]({r['assets']['sheet']})", ""]
     # what you can check against the frames
     L.append(T("**画面里看得到的**（可以对照截图核实）", "**Visible on screen** (check against the frames)"))

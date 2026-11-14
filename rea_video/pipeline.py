@@ -624,8 +624,6 @@ def finalize(breakdown: dict, out: Path, engine: str | None = None) -> dict:
     set_lang(breakdown.get("lang", "zh"))
     # remember the engine: apply-review / correct / eval call finalize without one and must not reset it
     engine = breakdown["engine"] = engine or breakdown.get("engine") or "seedance2.0"
-    if breakdown.get("whole_video_vlm") is not None:  # older runs stored the raw answer
-        breakdown["whole_video_vlm"] = normalize_whole(breakdown["whole_video_vlm"])
     shot_records = breakdown["shots"]
     audio = breakdown.get("audio", {})
     prov = breakdown.get("provenance", {})

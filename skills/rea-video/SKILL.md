@@ -37,7 +37,7 @@ rea-video --env-file <你的 .env> decompose ref.mp4 -o out/ref --vlm --lang <zh
 rea-video summary out/ref/breakdown.json
 ```
 
-**省 token，按拆片包逐层读**（格式见仓库 `docs/videomd.md`；地图一行一个文件：`路径 | 约 token | 内容`）：先读 `out/ref/VIDEO.md`（卡片 + 概览 + 地图，约 2k token），多数问题到这里就能答；要按镜头回答时读 `video/timeline.md`（一行一镜，键名带 `~` 的是推断，不带的是画面里看得到的）；要核实某一镜再打开 `video/shots/<编号>.md` 和它 `frames` 里的截图；某一方面（声音、包装、复刻方案）按地图打开对应的 `video/*.md`。不要读 `breakdown.json`（几十万字）或 `report.md`（那是给人看的）。复核时每镜看 `shots/shot_XXX.jpg` 联系表就够（已含首 / 中 / 尾帧），`_first` / `_last` 是复刻时给生成模型参照用的，不用另开。旧的输出目录没有 `VIDEO.md` 时运行 `rea-video videomd out/ref` 补出来。
+**省 token，按拆片包逐层读**（格式见仓库 `docs/videomd.md`；地图一行一个文件：`路径 | 约 token | 内容`）：先读 `out/ref/VIDEO.md`（卡片 + 概览 + 地图，约 2k token），多数问题到这里就能答；要按镜头回答时读 `video/timeline.md`（一行一镜，键名带 `~` 的是推断，不带的是画面里看得到的）；要核实某一镜再打开 `video/shots/<编号>.md` 和它 `frames` 里的截图；某一方面（声音、包装、复刻方案）按地图打开对应的 `video/*.md`。不要读 `breakdown.json`（几十万字）或 `report.md`（那是给人看的）。复核时每镜看 `shots/shot_XXX.jpg` 联系表就够（已含首 / 中 / 尾帧），`_first` / `_last` 是复刻时给生成模型参照用的，不用另开。
 
 ### 看图复核并入（能看图的 agent 必做，开了 VLM 也建议做低置信镜头）
 

@@ -122,8 +122,8 @@ def test_video_summary_and_check():
     assert aspects.report_md(b) and aspects.report_html(b)
 
 
-def test_seen_reads_new_and_legacy_answers():
-    r = {"vlm": {"cinematography": {"key_light": "路灯"}}, "review": {"aspects": {"lighting": {"key_light": "窗户"}}}}
+def test_seen_reads_review_and_vlm_answers():
+    r = {"vlm": {"aspects": {"lighting": {"key_light": "路灯"}}}, "review": {"aspects": {"lighting": {"key_light": "窗户"}}}}
     assert seen(r, "lighting", "key_light") == {"agent": "窗户", "vlm": "路灯"}
 
 
