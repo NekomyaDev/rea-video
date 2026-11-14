@@ -216,6 +216,13 @@ En parte. Si tienes instalado [capsule-cinema](https://github.com/JuneYaooo/caps
 </details>
 
 <details>
+<summary>¿Puede analizar un microdrama de varios episodios?</summary>
+
+rea-video trabaja con un solo vídeo cada vez. Para microdramas con una historia que sigue a lo largo de varios episodios, consulta [rea-toon](https://github.com/JuneYaooo/rea-toon).
+
+</details>
+
+<details>
 <summary>¿Qué es VIDEO.md y por qué lo genera rea-video?</summary>
 
 Cada skill tiene su `SKILL.md`; cada vídeo, su `VIDEO.md`. Es un formato abierto para análisis de vídeo, pensado para que el modelo lea solo lo que necesita la pregunta. Un análisis completo ocupa cientos de miles de tokens; VIDEO.md lo organiza por niveles: una ficha de unos cientos de tokens, un resumen con mapa, una línea de tiempo con una línea por plano y un archivo por plano. Cada archivo indica su tamaño, y lo que se ve en pantalla va separado de lo que infieren las herramientas.

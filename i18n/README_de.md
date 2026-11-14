@@ -216,6 +216,13 @@ Teilweise. Mit installiertem [capsule-cinema](https://github.com/JuneYaooo/capsu
 </details>
 
 <details>
+<summary>Kann es ein Kurzdrama mit mehreren Folgen zerlegen?</summary>
+
+rea-video arbeitet immer nur mit einem einzelnen Video. Für Kurzdramen mit durchgehender Handlung über mehrere Folgen siehe [rea-toon](https://github.com/JuneYaooo/rea-toon).
+
+</details>
+
+<details>
 <summary>Was ist VIDEO.md, und warum schreibt rea-video eine?</summary>
 
 Jeder Skill hat seine `SKILL.md`, jedes Video seine `VIDEO.md`. Es ist ein offenes Format für Videoanalysen, gemacht, damit ein Modell nur liest, was eine Frage braucht. Eine vollständige Analyse umfasst Hunderttausende Tokens; VIDEO.md ordnet sie in Ebenen: eine Karte mit einigen hundert Tokens, eine Übersicht mit Karte aller Dateien, eine Timeline mit einer Zeile pro Einstellung, dann eine Datei pro Einstellung. Jede Datei nennt ihre Größe, und was im Bild zu sehen ist, bleibt getrennt von dem, was die Werkzeuge ableiten.

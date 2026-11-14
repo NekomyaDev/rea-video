@@ -216,6 +216,13 @@ rea-video는 영상을 렌더링하지 않습니다. 샷마다 찍은 건지, AI
 </details>
 
 <details>
+<summary>여러 회차로 이어지는 숏드라마도 분석할 수 있나요?</summary>
+
+rea-video는 영상 한 편만 다룹니다. 여러 회차로 이야기가 이어지는 숏드라마는 [rea-toon](https://github.com/JuneYaooo/rea-toon)을 참고하세요.
+
+</details>
+
+<details>
 <summary>VIDEO.md는 무엇이고, rea-video는 왜 이것을 만드나요?</summary>
 
 스킬마다 `SKILL.md`가 있듯이, 영상마다 `VIDEO.md`가 있습니다. 모델이 질문에 필요한 부분만 읽도록 만든 영상 분석용 오픈 포맷입니다. 영상 하나의 전체 분석 데이터는 수십만 토큰에 이르지만, VIDEO.md는 이를 단계로 나눕니다: 수백 토큰의 카드, 개요와 지도, 샷당 한 줄의 타임라인, 그리고 샷당 한 파일. 각 파일은 자기 크기를 밝히고, 화면에 보이는 것과 도구가 추정한 것은 따로 적습니다.

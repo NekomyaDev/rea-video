@@ -216,6 +216,13 @@ Partly. With [capsule-cinema](https://github.com/JuneYaooo/capsule-cinema) insta
 </details>
 
 <details>
+<summary>Can it break down a multi-episode short drama?</summary>
+
+rea-video works on one video at a time. For multi-episode short dramas with a running story, see [rea-toon](https://github.com/JuneYaooo/rea-toon).
+
+</details>
+
+<details>
 <summary>What is VIDEO.md, and why does rea-video write one?</summary>
 
 Every skill has a `SKILL.md`; every video gets a `VIDEO.md`. It is an open format for video breakdowns, made so that models read only what a question needs. A full breakdown runs to hundreds of thousands of tokens; VIDEO.md lays it out in levels: a card of a few hundred tokens, an overview and map, a timeline with one line per shot, then one file per shot. Every file states its size, and what is seen on screen is kept apart from what the tools infer.

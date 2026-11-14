@@ -216,6 +216,13 @@ Một phần. Khi cài thêm [capsule-cinema](https://github.com/JuneYaooo/capsu
 </details>
 
 <details>
+<summary>Có phân tích được phim ngắn nhiều tập không?</summary>
+
+rea-video chỉ xử lý từng video một. Với phim ngắn nhiều tập có cốt truyện nối tiếp, hãy xem [rea-toon](https://github.com/JuneYaooo/rea-toon).
+
+</details>
+
+<details>
 <summary>VIDEO.md là gì, và vì sao rea-video tạo ra nó?</summary>
 
 Mỗi skill có một `SKILL.md`, mỗi video có một `VIDEO.md`. Đây là định dạng mở cho kết quả phân tích video, làm ra để mô hình chỉ đọc phần câu hỏi cần. Một bản phân tích đầy đủ lên tới hàng trăm nghìn token; VIDEO.md chia nó thành nhiều tầng: một thẻ vài trăm token, phần tổng quan kèm bản đồ tệp, dòng thời gian mỗi cảnh quay một dòng, rồi mỗi cảnh quay một tệp. Mỗi tệp ghi rõ kích thước của nó, và những gì thấy trên màn hình được tách khỏi những gì công cụ suy ra.

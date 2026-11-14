@@ -217,6 +217,13 @@ rea-video 不直接出片。它先逐个镜头判断是拍的、AI 生成的还�
 </details>
 
 <details>
+<summary>能拆多集剧情的短剧吗？</summary>
+
+rea-video 只针对单个视频。多集剧情的短剧类拆解，可以参考 [rea-toon](https://github.com/JuneYaooo/rea-toon)。
+
+</details>
+
+<details>
 <summary>VIDEO.md 是什么？rea-video 为什么要生成它？</summary>
 
 每个技能有一个 `SKILL.md`，每条视频也有一个 `VIDEO.md`。它是一个开放的视频拆解格式，目的是让模型只读问题需要的那部分。一条视频的完整拆解动辄几十万 token；VIDEO.md 把它分成几层：几百 token 的卡片、概览和地图、一行一个镜头的时间线，再到一镜一个文件。每个文件都写明自己有多大，画面里看得到的和工具推断的分开写。
