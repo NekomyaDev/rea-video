@@ -248,6 +248,25 @@ def _sha256(path) -> str | None:
     return h.hexdigest()
 
 
+def _next_steps(b: dict) -> list[str]:
+    """The commands to run next for this video, so a reader of this page alone takes the right route."""
+    labels = {sh["base"]["label"] for sh in b["shots"]}
+    L = []
+    if not (b.get("analysis") or {}).get("review") and not ((b.get("analysis") or {}).get("vlm") or {}).get("used"):
+        L.append(T("没开 VLM：能看图就先复核，`rea-video review <本目录>` → 填 `review_answers.json` → `rea-video apply-review <本目录>`",
+                   "No VLM ran: if you can see images, review first: `rea-video review <this dir>` → fill `review_answers.json` → `rea-video apply-review <this dir>`"))
+    L.append(T("复刻：`rea-video remake <本目录>`，能自动做的先做掉，其余原片占位；`remake/status.md` 逐镜写了还要做什么。拿到新镜头写进 `remake/mine.json` 再跑一次",
+               "Remake: `rea-video remake <this dir>` does what can be done automatically and keeps the original elsewhere; `remake/status.md` "
+               "says per shot what is left. Add incoming clips to `remake/mine.json` and run it again"))
+    if "code_render" in labels:
+        L.append(T("代码渲染镜头由 `rea-video code-remake <本目录>` 重画（上一条会自动跑）：改 `code/spec.json` 再跑，不要从零写",
+                   "Code-rendered shots are redrawn by `rea-video code-remake <this dir>` (the step above runs it): edit `code/spec.json` and rerun, do not write one from scratch"))
+    if labels & {"ai_video", "cg_3d", "anim_2d", "stop_motion", "avatar"}:
+        L.append(T("AI 类镜头：提示词在 `video/remake.md` 的「生成单元」；要自动生成跑 `rea-video remake-plan` + `remake-run --dry-run`，会计费，先问用户",
+                   "AI shots: prompts are in the generation units of `video/remake.md`; for automatic generation run `rea-video remake-plan` + `remake-run --dry-run` (paid: ask the user first)"))
+    return L
+
+
 def _overview(b: dict, files: list[tuple[str, str, str, int]]) -> str:
     s = b["summary"]
     w = b.get("whole_video_vlm") or {}
@@ -266,6 +285,7 @@ def _overview(b: dict, files: list[tuple[str, str, str, int]]) -> str:
     if rm.get("shots"):
         L.append(T("**要拿到的真实素材**：{n} 个镜头（{r:.0%} 时长），清单见 `{d}/remake.md`", "**Real material to collect**: {n} shots ({r:.0%} of the duration), list in `{d}/remake.md`", d=DIR,
                    n=len(rm["shots"]), r=rm["ratio"]))
+    L += ["", T("## 下一步", "## Next steps"), ""] + [f"- {x}" for x in _next_steps(b)]
     qs = entities.open_questions(b)
     L += ["", T("## 不确定点", "## Open questions"), ""] + ([f"- {_one_line(q, 160)}" for q in qs[:8]] or [T("- 没有", "- None")])
     if len(qs) > 8:

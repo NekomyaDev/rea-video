@@ -31,6 +31,8 @@ WORK_W = 480  # measuring width; positions are written as 0-1 of the frame, so t
 GRID = (16, 9)  # cells of the layout map (x, y)
 SCENE_WIN = 1.5  # seconds compared on each side of a candidate scene change; also the shortest scene kept
 SCENE_MOVE = 0.25  # share of the drawn layer that has to move elsewhere in the frame for a new scene
+SCENE_AMOUNT = 3.0  # or this many times more / less drawn in place
+SCENE_COLOUR = 25.0  # or the drawn colour moving this far (Lab a, b)
 
 
 def _hex(bgr) -> str:
@@ -166,10 +168,12 @@ def _boxes_at(boxes, t: float, until: float | None = None) -> list:
     return [b for t0, t1, b in boxes if t0 - 0.3 <= z and t <= t1 + 0.3]
 
 
-def split_scenes(maps: np.ndarray, times: np.ndarray, start: float, end: float) -> list[tuple[float, float]]:
+def split_scenes(maps: np.ndarray, times: np.ndarray, start: float, end: float,
+                 looks: np.ndarray | None = None) -> list[tuple[float, float]]:
     """Scene changes inside one shot: where the layout before and after differs (share of the drawn layer that sits
-    elsewhere) by more than SCENE_MOVE beyond how much it varies within each side. maps: one flattened layout per
-    sampled time."""
+    elsewhere) by more than SCENE_MOVE beyond how much it varies within each side, or where the drawing turns into
+    something else in place: SCENE_AMOUNT times more or less of it, or its colour moves by SCENE_COLOUR. maps: one
+    flattened layout per sampled time; looks: [log cover, a, b] of the drawn layer per sampled time (Lab)."""
     if len(times) < 2:
         return [(start, end)]
     step = float(np.median(np.diff(times)))
@@ -178,10 +182,14 @@ def split_scenes(maps: np.ndarray, times: np.ndarray, start: float, end: float) 
     for i in range(win, len(times) - win + 1):
         a, b = maps[i - win:i], maps[i:i + win]
         spread = 0.5 * (0.5 * np.abs(a - a.mean(0)).sum(1).mean() + 0.5 * np.abs(b - b.mean(0)).sum(1).mean())
-        score[i] = 0.5 * np.abs(a.mean(0) - b.mean(0)).sum() - spread
+        score[i] = (0.5 * np.abs(a.mean(0) - b.mean(0)).sum() - spread) / SCENE_MOVE
+        if looks is not None:
+            la, lb = np.median(looks[i - win:i], axis=0), np.median(looks[i:i + win], axis=0)
+            score[i] = max(score[i], abs(float(lb[0] - la[0])) / np.log(SCENE_AMOUNT),
+                           float(np.hypot(lb[1] - la[1], lb[2] - la[2])) / SCENE_COLOUR)
     cuts: list[float] = []
     for i in np.argsort(-score):
-        if score[i] < SCENE_MOVE:
+        if score[i] < 1.0:
             break
         t = float(times[i])
         if t - start < SCENE_WIN or end - t < SCENE_WIN or any(abs(t - c) < SCENE_WIN for c in cuts):
@@ -191,6 +199,52 @@ def split_scenes(maps: np.ndarray, times: np.ndarray, start: float, end: float) 
             cuts.append(t)
     edges = [start, *sorted(cuts), end]
     return list(zip(edges[:-1], edges[1:]))
+
+
+def look(bgr: np.ndarray, m: np.ndarray) -> list[float]:
+    """[log cover, a, b] of the drawn layer: how much is drawn and its mean colour (Lab), for split_scenes."""
+    if m.sum() < 10:
+        return [float(np.log(1e-4)), 0.0, 0.0]
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)[m].astype(np.float32)
+    return [float(np.log(m.mean() + 1e-4)), float(lab[:, 1].mean() - 128), float(lab[:, 2].mean() - 128)]
+
+
+def step_motion(prev: np.ndarray, cur: np.ndarray, mask: np.ndarray) -> list[float] | None:
+    """How the drawn layer moved from one sampled frame to the next (gray frames, mask = the drawn layer of prev):
+    [scale, rotation in degrees, pan x, pan y, drift], pan as 0-1 of the frame for the layer's centre, drift = how far
+    single points still move once the whole-layer move is taken out (0-1 of the frame width). None when too little
+    is drawn to follow."""
+    h, w = prev.shape
+    pts = cv2.goodFeaturesToTrack(prev, 300, 0.01, 3, mask=cv2.dilate(mask.astype(np.uint8), np.ones((3, 3), np.uint8)))
+    if pts is None or len(pts) < 8:
+        return None
+    nxt, ok, _ = cv2.calcOpticalFlowPyrLK(prev, cur, pts, None, winSize=(15, 15), maxLevel=2)
+    ok = ok.ravel().astype(bool)
+    p0, p1 = pts.reshape(-1, 2)[ok], nxt.reshape(-1, 2)[ok]
+    if len(p0) < 8:
+        return None
+    A, inl = cv2.estimateAffinePartial2D(p0, p1, method=cv2.RANSAC, ransacReprojThreshold=2.0)
+    if A is None or inl is None or inl.mean() < 0.3:  # flickering dots: no one move most points agree on
+        return None
+    c = p0.mean(axis=0)
+    moved = A[:, :2] @ c + A[:, 2]
+    keep = inl.ravel().astype(bool)
+    res = np.linalg.norm(p1[keep] - (p0[keep] @ A[:, :2].T + A[:, 2]), axis=1)
+    return [round(float(np.hypot(A[0, 0], A[1, 0])), 5), round(float(np.degrees(np.arctan2(A[1, 0], A[0, 0]))), 4),
+            round(float(moved[0] - c[0]) / w, 5), round(float(moved[1] - c[1]) / h, 5), round(float(np.median(res)) / w, 5)]
+
+
+def scene_motion(steps: list[list[float]], every: float) -> dict:
+    """Whole-scene motion from the per-step moves: zoom (share per second, + is closer), rotation (degrees per
+    second, + is clockwise on screen), pan (0-1 of the frame per second) and drift (how fast single points wander
+    on their own, 0-1 of the frame width per second)."""
+    if not steps:
+        return {}
+    a = np.array(steps, np.float64)
+    dur = len(a) * every
+    return {"zoom": round(float(np.exp(np.log(a[:, 0]).sum() / dur) - 1), 4), "rotate": round(float(a[:, 1].sum() / dur), 3),
+            "pan": [round(float(a[:, 2].sum() / dur), 4), round(float(a[:, 3].sum() / dur), 4)],
+            "drift": round(float(np.median(a[:, 4]) / every), 4)}
 
 
 def shot_label(shot: dict) -> str | None:
@@ -232,19 +286,27 @@ def scene_frames(out: Path, every: float = 0.25, n_points: int = 4000, all_shots
     scenes: list[dict] = []
     for s in shots:
         st, en = float(s["start"]), float(s["end"])
-        maps, times, track = [], [], []
+        maps, times, track, moves, looks = [], [], [], [], []
+        prev = None
         for i, f in enumerate(iter_frames(video, info, WORK_W, start=st, duration=en - st, fps=1.0 / every)):
             t = st + i * every
             m = layer_mask(f, _boxes_at(boxes, t))
             maps.append(layout(m).ravel())
+            looks.append(look(f, m))
             times.append(t)
+            g = cv2.cvtColor(f, cv2.COLOR_BGR2GRAY)
+            if prev is not None:
+                mv = step_motion(prev[0], g, prev[1])
+                if mv:
+                    moves.append([round(t, 2), *mv])
+            prev = (g, m)
             ys, xs = np.nonzero(m)
             if len(xs) >= 10:  # how the drawing moves: centre, horizontal spread and cover over time
                 track.append([round(t, 2), round(float(xs.mean()) / f.shape[1], 3), round(float(ys.mean()) / f.shape[0], 3),
                               round(float(xs.std()) / f.shape[1], 3), round(float(m.mean()), 4)])
         if not times:
             continue
-        for a, z in split_scenes(np.array(maps), np.array(times), st, en):
+        for a, z in split_scenes(np.array(maps), np.array(times), st, en, np.array(looks)):
             sid = f"scene_{len(scenes) + 1:02d}"
             mid = (a + z) / 2
             rec = {"id": sid, "shot": s.get("index"), "start": round(a, 2), "end": round(z, 2), "frames": {}}
@@ -263,6 +325,9 @@ def scene_frames(out: Path, every: float = 0.25, n_points: int = 4000, all_shots
                                                              "points": sample_points(img, n_points, in_scene)})
                 rec["points"] = f"frames/points/{sid}.json"
             rec["track"] = [r for r in track if a <= r[0] < z]
+            # a step that straddles a scene change is a rearrangement, not a move
+            rec["motion"] = scene_motion([r[1:] for r in moves if a + every <= r[0] < z], every)
+            rec["enter"] = "morph" if scenes and scenes[-1]["shot"] == s.get("index") else "cut"
             scenes.append(rec)
     res = {"video": video, "every": every, "track_format": "t cx cy spread cover", "scenes": scenes}
     write_json(fdir / "scenes.json", res)

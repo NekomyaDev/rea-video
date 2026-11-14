@@ -24,6 +24,7 @@ from __future__ import annotations
 from .i18n import LangDict, T, join
 
 import re
+import subprocess
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -177,6 +178,16 @@ def text_style(frame: np.ndarray, box: tuple[int, int, int, int], rendered: bool
     sp = {c: spread(c) for c in top}
     wide = [c for c in top if sp[c] >= 0.5 * max(sp.values())] or top
     fill = min(wide, key=lambda c: (round(bg_contact(c), 1), -sp[c])) if bg_mask.any() else max(wide, key=lambda c: sp[c])
+    if rendered and max(sp.values()) < 0.2:
+        # small text with one- or two-pixel strokes on a rendered picture: no colour has solid strokes, and the
+        # ground seen inside the glyphs or a dark drop shadow is as enclosed as the letters. The letters are the
+        # colour that stands out most from the ground around the line.
+        bg0 = int(np.argmax(ring_share0))
+        far = lambda c: abs(float(centers[c][0] - centers[bg0][0])) + 0.5 * float(np.linalg.norm(centers[c][1:] - centers[bg0][1:]))  # noqa: E731
+        lit = [c for c in range(k) if enclosed[c] >= 0.05 * enclosed.max()]
+        best = max(far(c) for c in lit)
+        if best > 30:
+            fill = max((c for c in lit if far(c) >= 0.7 * best), key=lambda c: enclosed[c])
     bgr_of = lambda c: cv2.cvtColor(np.uint8([[centers[c]]]), cv2.COLOR_LAB2BGR)[0, 0]  # noqa: E731
     out: dict = {"fill": _hex(bgr_of(fill)), "fill_name": color_name(bgr_of(fill))}
     fm = (enc_mask == fill)
@@ -1491,6 +1502,50 @@ def _ass_color(hexrgb: str | None, default: str) -> str:
     h = (hexrgb or default).lstrip("#")
     r, g, b = h[0:2], h[2:4], h[4:6]
     return f"&H00{b}{g}{r}".upper()
+
+
+FITTED = "; Fontsize fitted to the installed fonts"
+
+
+def fit_ass_sizes(path: Path) -> float | None:
+    """Rescale the Fontsize of every style so the letters come out as tall as measured. to_ass writes the measured
+    letter height, but libass sizes text by the font's whole line (ascent + descent), so letters render smaller by
+    an amount that depends on which fonts are installed. One probe line is rendered with ffmpeg to find out. Returns
+    the factor applied, or None when ffmpeg cannot render ASS (or the file was fitted already)."""
+    path = Path(path)
+    text = path.read_text(encoding="utf-8")
+    if FITTED in text:
+        return None
+    font = next((ln.split(",")[1] for ln in text.splitlines() if ln.startswith("Style: ")), "Sans")
+    probe = ("[Script Info]\nScriptType: v4.00+\nPlayResX: 400\nPlayResY: 200\n\n[V4+ Styles]\n"
+             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
+             "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+             f"Style: p,{font},100,&H00FFFFFF,&H0000FFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1\n\n[Events]\n"
+             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+             "Dialogue: 0,0:00:00.00,0:00:01.00,p,,0,0,0,,{\\pos(200,100)}国国\n")
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        (Path(td) / "p.ass").write_text(probe, encoding="utf-8")
+        r = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=black:s=400x200:d=0.1", "-vf", "ass=p.ass",
+                            "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"], cwd=td, capture_output=True)
+    if r.returncode != 0 or len(r.stdout) != 400 * 200:
+        return None
+    ys = np.nonzero(np.frombuffer(r.stdout, np.uint8).reshape(200, 400) > 100)[0]
+    if len(ys) < 10:
+        return None
+    k = 100.0 / float(ys.max() - ys.min() + 1)
+    if 0.95 <= k <= 1.05:
+        k = 1.0
+    out = []
+    for ln in text.splitlines():
+        if ln.startswith("Style: "):
+            f = ln.split(",")
+            f[2] = str(max(8, int(round(float(f[2]) * k))))
+            ln = ",".join(f)
+        out.append(ln)
+    out.insert(1, FITTED)
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return round(k, 3)
 
 
 def to_ass(cues: list[dict], width: int, height: int) -> str:

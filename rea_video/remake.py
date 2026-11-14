@@ -99,7 +99,7 @@ def replaced_spans(b: dict, legend: list[tuple]) -> list[tuple[float, float]]:
     shots = {sh["index"]: sh for sh in b["shots"]}
     spans: list[list[float]] = []
     for i, how in legend:
-        if how == "original":
+        if how in ("original", "code"):  # both already carry their text
             continue
         a, z = shots[i]["start"], shots[i]["end"]
         if spans and abs(spans[-1][1] - a) < 1e-3:
@@ -134,12 +134,16 @@ def overlay_cues(b: dict, spans: list[tuple[float, float]]) -> tuple[list[dict],
     return cues, stickers
 
 
-def assemble(breakdown_path: Path, results_path: Path, out_dir: Path | None = None, overlays: bool = False) -> str:
+def assemble(breakdown_path: Path, results_path: Path, out_dir: Path | None = None, overlays: bool = False,
+             code_video: Path | None = None, extra: dict | None = None) -> str:
+    """code_video: a remake of the code-rendered shots on the original timeline (`code-remake`), cut in for them.
+    extra: more {shot: {"video": path}} results on top of results_path's (later ones win)."""
     b = read_json(breakdown_path)
     bdir = breakdown_path.parent
     jobs_path = results_path.with_name("jobs.json")
     jobs = {j["shot"]: j for j in read_json(jobs_path)["jobs"]} if jobs_path.is_file() else {}
     results = read_json(results_path).get("results", {}) if results_path.is_file() else {}
+    results = {**results, **{str(k): v for k, v in (extra or {}).items()}}
     out_dir = out_dir or results_path.parent
     seg_dir = out_dir / "segments"
     seg_dir.mkdir(parents=True, exist_ok=True)
@@ -158,6 +162,9 @@ def assemble(breakdown_path: Path, results_path: Path, out_dir: Path | None = No
         if res.get("video") and Path(res["video"]).is_file():
             _fit_clip(Path(res["video"]), seg, dur, (w, h), fps)
             legend.append((sh["index"], "generated"))
+        elif code_video and sh["base"]["label"] == "code_render" and Path(code_video).is_file():
+            _original_segment(Path(code_video), seg, sh["start"], dur, (w, h), fps)
+            legend.append((sh["index"], "code"))
         elif job.get("executor") == "local_ffmpeg" or sh["base"]["label"] in ("still_motion", "static_hold"):
             m = sh["replication"].get("local", {})
             img = bdir / sh["assets"]["first_frame"]
@@ -174,12 +181,13 @@ def assemble(breakdown_path: Path, results_path: Path, out_dir: Path | None = No
     _ff(["-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(silent)])
     overlay_log: dict = {}
     if overlays:
-        from .packaging import to_ass
+        from .packaging import fit_ass_sizes, to_ass
 
         cues, stickers = overlay_cues(b, replaced_spans(b, legend))
         overlay_log = {"text": len(cues), "stickers_to_add": stickers}
         if cues:
             (out_dir / "overlays_remake.ass").write_text(to_ass(cues, w, h), encoding="utf-8")
+            fit_ass_sizes(out_dir / "overlays_remake.ass")
             try:  # relative name + cwd: no filter-string escaping of the path
                 _ff(["-i", silent.name, "-vf", "ass=overlays_remake.ass", "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
                      "remake_overlaid.mp4"], cwd=out_dir)
@@ -210,3 +218,84 @@ def assemble(breakdown_path: Path, results_path: Path, out_dir: Path | None = No
     (out_dir / "assemble_log.json").write_text(json.dumps(log, ensure_ascii=False, indent=2), encoding="utf-8")
     LOG.info("remake -> %s ; compare -> %s", final, compare)
     return json.dumps(log, ensure_ascii=False)
+
+
+GENERATED = ("ai_video", "cg_3d", "anim_2d", "stop_motion", "avatar")
+
+
+def _next_step(sh: dict) -> str:
+    """What still has to happen for a shot that is showing the original."""
+    from .i18n import T
+
+    lab = sh["base"]["label"]
+    need = (sh.get("replication") or {}).get("user_assets") or []
+    if lab in GENERATED:
+        return T("生成：用报告「生成单元」的提示词在网页上手动生成，或 remake-plan + remake-run（计费，先 --dry-run）",
+                 "generate: paste the report's generation-unit prompt into a video model, or remake-plan + remake-run (paid; --dry-run first)")
+    if lab == "live_action":
+        return T("拍摄：按报告的拍摄方案拍", "shoot it: follow the report's shooting plan") + (
+            T("（要用到：{a}）", " (needs: {a})", a="、".join(str(a) for a in need)) if need else "")
+    if lab == "screen_capture":
+        return T("录屏：按原片的操作重录一遍", "record the screen: redo the same steps")
+    if lab == "film_footage":
+        return T("影视片段：找到原片对应片段（有版权），或换成自己拍的", "film clip: find it in the source (rights apply) or shoot your own")
+    if lab == "code_render":
+        return T("代码渲染：rea-video code-remake 没跑成，先单独跑它看报错", "code render: code-remake did not run; run it alone to see why")
+    return T("提供素材", "provide the footage")
+
+
+def remake(out: Path, code: bool = True, overlays: bool = True) -> dict:
+    """The whole remake in one pass, as far as it can go without paid generation or the user's own footage:
+    code-rendered shots are redrawn (code-remake), stills are rebuilt from the measured move, clips already
+    generated (remake/results.json from remake-run) or supplied (remake/mine.json, {"results": {"<shot>": {"video": path}}})
+    are cut in, everything else keeps the original as a stand-in. Writes remake/remake.mp4, remake/compare.mp4 and
+    remake/status.md (per shot: how it is made now and what is still to do). Run it again whenever a clip comes in."""
+    from .i18n import T
+    from .util import write_json
+
+    out = Path(out)
+    b = read_json(out / "breakdown.json")
+    rdir = out / "remake"
+    rdir.mkdir(exist_ok=True)
+    res: dict = {}
+    code_video = out / "code" / "remake.mp4"
+    if code and any(sh["base"]["label"] == "code_render" for sh in b["shots"]):
+        from .code_remake import code_remake
+
+        try:
+            if not code_video.is_file():
+                cr = code_remake(out)
+                res["code_score"] = (cr.get("compare") or {}).get("score")
+        except (ValueError, OSError, RuntimeError) as e:
+            res["code_error"] = str(e)
+    mine = rdir / "mine.json"
+    extra = read_json(mine).get("results", {}) if mine.is_file() else {}
+    log = json.loads(assemble(out / "breakdown.json", rdir / "results.json", rdir, overlays=overlays,
+                              code_video=code_video if code_video.is_file() else None, extra=extra))
+    how = dict(log["legend"])
+    HOW = {"generated": T("生成 / 你的素材", "generated / your footage"), "code": T("代码重画", "redrawn in code"),
+           "local_still": T("静图按测得的运动重建", "still rebuilt with the measured move"), "original": T("原片占位", "original as stand-in")}
+    rows, todo = [], []
+    for sh in b["shots"]:
+        h = how.get(sh["index"], "original")
+        nxt = _next_step(sh) if h == "original" else ""
+        rows.append({"shot": sh["index"], "start": sh["start"], "end": sh["end"], "label": sh["base"]["label"], "now": h, "next": nxt})
+        if nxt:
+            todo.append(sh["index"])
+    done = sum(r["end"] - r["start"] for r in rows if r["now"] != "original")
+    total = sum(r["end"] - r["start"] for r in rows) or 1.0
+    L = [T("# 复刻进度", "# Remake status"), "",
+         T(f"已经替换 {done / total:.0%} 时长；成片 `remake/{Path(log['remake']).name}`，左右对比 `remake/compare.mp4`。",
+           f"{done / total:.0%} of the running time replaced; video `remake/{Path(log['remake']).name}`, side by side `remake/compare.mp4`."), "",
+         T("拿到新的镜头视频（生成的或用户自己的）就写进 `remake/mine.json`：`{\"results\": {\"镜头号\": {\"video\": \"绝对路径\"}}}`，再跑一次 `rea-video remake <目录>`。",
+           "When a clip comes in (generated or the user's own), add it to `remake/mine.json`: `{\"results\": {\"<shot>\": {\"video\": \"<absolute path>\"}}}`, then run `rea-video remake <folder>` again."),
+         "", T("| 镜头 | 时间 | 画面类型 | 现在 | 还要做 |", "| Shot | Time | Picture | Now | To do |"), "|---|---|---|---|---|"]
+    from .classify import LABEL_ZH
+
+    for r in rows:
+        L.append(f"| #{r['shot']} | {r['start']:.1f}–{r['end']:.1f}s | {LABEL_ZH.get(r['label'], r['label'])} | {HOW[r['now']]} | {r['next'] or '—'} |")
+    (rdir / "status.md").write_text("\n".join(L) + "\n", encoding="utf-8")
+    write_json(rdir / "status.json", {"replaced_share": round(done / total, 3), "shots": rows})
+    res.update({"remake": log["remake"], "compare": log["compare"], "status": str(rdir / "status.md"),
+                "replaced_share": round(done / total, 3), "to_do": todo})
+    return res

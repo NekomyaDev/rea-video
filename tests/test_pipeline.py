@@ -141,3 +141,26 @@ def test_english_report_has_no_chinese(media, tmp_path):
         assert again["shots"][0]["base"]["label_zh"] == "静帧停留"
     finally:
         set_lang("zh")
+
+
+def test_remake_does_every_shot_it_can_and_says_what_is_left(breakdown, tmp_path):
+    from rea_video.remake import remake
+
+    b, out = breakdown
+    res = remake(out)
+    st = json.loads((out / "remake" / "status.json").read_text())
+    assert [r["now"] for r in st["shots"]] == ["local_still", "local_still", "code"], st
+    assert res["replaced_share"] == 1.0 and res["to_do"] == [] and (out / "code" / "spec.json").is_file()
+    assert Path(res["remake"]).is_file() and "代码重画" in (out / "remake" / "status.md").read_text()
+    # a clip handed in for a shot is cut in on the next run
+    clip = out / "remake" / "segments" / "shot_002.mp4"
+    (out / "remake" / "mine.json").write_text(json.dumps({"results": {"1": {"video": str(clip)}}}))
+    remake(out, code=False)
+    now = [r["now"] for r in json.loads((out / "remake" / "status.json").read_text())["shots"]]
+    assert now[0] == "generated" and now[2] == "code"  # the earlier code render is reused
+
+
+def test_video_md_names_the_next_commands(breakdown):
+    b, out = breakdown
+    text = (out / "VIDEO.md").read_text(encoding="utf-8")
+    assert "rea-video remake" in text and "code-remake" in text

@@ -362,6 +362,31 @@ def cmd_compare(args) -> int:
     return 0
 
 
+def cmd_remake(args) -> int:
+    from .remake import remake
+
+    out = Path(args.out_dir)
+    if not (out / "breakdown.json").is_file():
+        raise SystemExit(f"rea-video: {out} 下没有 breakdown.json，先运行 decompose")
+    print(json.dumps(remake(out, code=not args.no_code, overlays=not args.no_overlays), ensure_ascii=False, indent=1))
+    return 0
+
+
+def cmd_code_remake(args) -> int:
+    from .code_remake import code_remake
+
+    out = Path(args.out_dir)
+    if not (out / "breakdown.json").is_file():
+        raise SystemExit(f"rea-video: {out} 下没有 breakdown.json，先运行 decompose")
+    try:
+        res = code_remake(out, reset=args.reset, render=not args.no_render, score=not args.no_compare)
+    except ValueError as e:
+        raise SystemExit(f"rea-video: {e}")
+    res.pop("matched", None)
+    print(json.dumps(res, ensure_ascii=False, indent=1))
+    return 0
+
+
 def cmd_summary(args) -> int:
     """Compact, agent-friendly view of a breakdown (instead of reading the whole JSON)."""
     from .i18n import T, join
@@ -688,6 +713,19 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("--worst", type=int, default=8, help="对比图里放几个最差时刻（默认 8）")
     cp.add_argument("-o", "--out", help="输出目录：compare.json 和 compare_worst.jpg")
     cp.set_defaults(func=cmd_compare)
+
+    rm = sub.add_parser("remake", help="一条命令出复刻：代码渲染镜头重画、静图按运动重建、已生成 / 你给的镜头剪进去，其余原片占位；输出成片、对比视频和逐镜进度（remake/status.md）")
+    rm.add_argument("out_dir", help="decompose 的输出目录")
+    rm.add_argument("--no-code", action="store_true", help="不重画代码渲染镜头")
+    rm.add_argument("--no-overlays", action="store_true", help="换掉的镜头上不叠回字幕 / 花字")
+    rm.set_defaults(func=cmd_remake)
+
+    cr = sub.add_parser("code-remake", help="代码渲染镜头的第一版复刻：按场景的采样点 / 抠图、运动和背景光写出可改的工程（code/spec.json + render.py），对齐原片后渲染并打分")
+    cr.add_argument("out_dir", help="decompose 的输出目录")
+    cr.add_argument("--reset", action="store_true", help="重新生成 spec.json（默认保留改过的）")
+    cr.add_argument("--no-render", action="store_true", help="只写工程，不渲染")
+    cr.add_argument("--no-compare", action="store_true", help="渲染后不打分")
+    cr.set_defaults(func=cmd_code_remake)
 
     sm = sub.add_parser("summary", help="紧凑打印拆解结果（低置信镜头会被标出来）")
     sm.add_argument("breakdown")
