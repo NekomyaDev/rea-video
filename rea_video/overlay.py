@@ -24,7 +24,16 @@ _REC_MODELS = {
     "ja": ("japan_PP-OCRv4_rec_mobile.onnx",
            "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv4/rec/japan_PP-OCRv4_rec_mobile.onnx",
            "e1075a67dba758ecfc7ebc78a10ae61c95ac8fb66a9c86fab5541e33f085cb7a"),
+    # PP-OCRv5: the v5 Korean recognizer is smaller than v4 (13.5 vs 24 MB) and read more lines exactly on
+    # Korean subtitles drawn over real frames (see _NO_ANGLE_CLS for the other half of making Korean work)
+    "ko": ("korean_PP-OCRv5_rec_mobile.onnx",
+           "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5/rec/korean_PP-OCRv5_rec_mobile.onnx",
+           "cd6e2ea50f6943ca7271eb8c56a877a5a90720b7047fe9c41a2e541a25773c9b"),
 }
+# Languages read without the text-direction classifier. The bundled classifier flips many Hangul line crops
+# by 180 degrees, and the recognizer then reads the upside-down line as noise ("단 3분 만에 완성되는 초간단
+# 레시피" -> "피 극궁어") or drops it under the score floor. Subtitles and captions are upright anyway.
+_NO_ANGLE_CLS = {"ko"}
 _OCR: dict = {}  # language -> RapidOCR instance, or None when it could not be loaded
 
 
@@ -73,12 +82,14 @@ class _RapidOCR3:
     """rapidocr 3.x (used on Python >= 3.13, where rapidocr-onnxruntime has no release) behind the
     rapidocr-onnxruntime call shape: ocr(img) -> ([[box, text, score], ...] or None, elapse)."""
 
-    def __init__(self, rec_model_path: str | None = None):
+    def __init__(self, rec_model_path: str | None = None, use_cls: bool | None = None):
         from rapidocr import RapidOCR  # type: ignore
 
         params = {"Global.log_level": "warning"}
         if rec_model_path:  # its character list is read from the ONNX metadata, as with rapidocr-onnxruntime
             params["Rec.model_path"] = rec_model_path
+        if use_cls is not None:
+            params["Global.use_cls"] = use_cls
         self._ocr = RapidOCR(params=params)
 
     def __call__(self, img):
@@ -102,6 +113,8 @@ def get_ocr():
     if lang not in _OCR:
         try:
             kwargs = {"rec_model_path": str(rec_model(lang))} if lang in _REC_MODELS else {}
+            if lang in _NO_ANGLE_CLS:
+                kwargs["use_cls"] = False  # rapidocr-onnxruntime takes it as a constructor option too
             _OCR[lang] = _ocr_engine(**kwargs)
         except Exception as exc:  # pragma: no cover - optional dependency / offline
             LOG.warning("OCR disabled (pip install 'rea-video[ocr]' to enable; lang=%s): %s", lang, exc)

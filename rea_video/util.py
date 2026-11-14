@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 LOG = logging.getLogger("rea_video")
-OCR_LANGS = ("zh", "ja")  # subtitle/huazi OCR languages; zh is the bundled recognizer, others are in overlay._REC_MODELS
+OCR_LANGS = ("zh", "ja", "ko")  # subtitle/huazi OCR languages; zh is the bundled recognizer, others are in overlay._REC_MODELS
 ASR_LANGS = ("auto", "bn")  # speech recognition: auto is SenseVoice (zh/en/ja/ko/yue, detected per line); bn is speech.BN_MODEL_DIR
 
 

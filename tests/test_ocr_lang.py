@@ -47,6 +47,45 @@ def test_ja_uses_japanese_recognizer(monkeypatch, tmp_path, fake_rapidocr):
     assert fake_rapidocr == [{"rec_model_path": str(model)}, {}]  # one instance per language
 
 
+def test_ko_uses_korean_recognizer_without_angle_classifier(monkeypatch, tmp_path, fake_rapidocr):
+    model = tmp_path / "korean.onnx"
+    model.write_bytes(b"x")
+    monkeypatch.setenv("REA_OCR_REC_MODEL", str(model))
+    monkeypatch.setenv("REA_OCR_LANG", "ko")
+    overlay.get_ocr()
+    monkeypatch.setenv("REA_OCR_LANG", "ja")
+    overlay.get_ocr()
+    # the classifier flips Hangul lines upside down, so only ko turns it off
+    assert fake_rapidocr == [{"rec_model_path": str(model), "use_cls": False}, {"rec_model_path": str(model)}]
+
+
+def test_ko_model_is_pinned():
+    name, url, sha = overlay._REC_MODELS["ko"]
+    assert url.startswith("https://") and url.endswith("/" + name)
+    assert len(sha) == 64 and int(sha, 16) >= 0
+
+
+def test_rapidocr3_turns_off_angle_classifier_for_ko(monkeypatch, tmp_path):
+    made = []
+
+    class RapidOCR:
+        def __init__(self, params=None):
+            made.append(params)
+
+    monkeypatch.setitem(sys.modules, "rapidocr_onnxruntime", None)  # import raises ImportError
+    monkeypatch.setitem(sys.modules, "rapidocr", types.SimpleNamespace(RapidOCR=RapidOCR))
+    monkeypatch.setattr(overlay, "_OCR", {})
+    model = tmp_path / "korean.onnx"
+    model.write_bytes(b"x")
+    monkeypatch.setenv("REA_OCR_REC_MODEL", str(model))
+    monkeypatch.setenv("REA_OCR_LANG", "ko")
+    overlay.get_ocr()
+    monkeypatch.setenv("REA_OCR_LANG", "zh")
+    overlay.get_ocr()
+    assert made[0]["Rec.model_path"] == str(model) and made[0]["Global.use_cls"] is False
+    assert "Global.use_cls" not in made[1]  # other languages keep rapidocr's default
+
+
 def test_cached_model_with_matching_checksum_is_not_downloaded(monkeypatch, tmp_path):
     monkeypatch.delenv("REA_OCR_REC_MODEL", raising=False)
     monkeypatch.setenv("REA_VIDEO_MODELS", str(tmp_path))
