@@ -184,6 +184,10 @@ Echte Assets werden zu 97–99 % erkannt; bei neun von Hand annotierten Clips we
 3. Entscheiden: Harte Belege wie AIGC-Tags und Frame-Takt zählen mehr als „sieht aus wie“. Widersprüche werden markiert, damit der Agent sie sich ansieht.
 4. Remake planen: Shots so bündeln, wie es das Ziel-Videomodell tatsächlich hergibt – maximale Cliplänge, Multi-Shot-Support, wie viele Referenzbilder es nimmt.
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
+
 ## FAQ
 
 <details>

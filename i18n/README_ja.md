@@ -184,6 +184,10 @@ rea-video は無料のオープンソースです。スポンサーの支援で�
 3. 判定：AIGC タグやフレーム間隔のような確かな手がかりを、「それっぽく見える」より優先します。食い違いがあればフラグを立てて、エージェントが目で確認します。
 4. リメイクの計画：1 クリップの最大長、マルチショット対応か、参照画像を何枚受け付けるかなど、使う動画モデルに実際にできることに合わせてショットをまとめます。
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
+
 ## FAQ
 
 <details>

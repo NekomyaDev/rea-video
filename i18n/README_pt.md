@@ -184,6 +184,10 @@ A detecção de material real fica entre 97% e 99%; em nove clipes anotados à m
 3. Decidir: evidência concreta, como tag de AIGC e cadência de quadros, vale mais do que "parece que". Quando há conflito, ele fica sinalizado para o agente revisar visualmente.
 4. Planejar o remake: agrupa os planos conforme o que o modelo de vídeo escolhido consegue fazer de verdade, como duração máxima do clipe, suporte a múltiplos planos e quantas imagens de referência ele aceita.
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=JuneYaooo/rea-video&type=Date)](https://star-history.com/#JuneYaooo/rea-video&Date)
+
 ## Perguntas frequentes
 
 <details>
