@@ -178,16 +178,27 @@ def text_style(frame: np.ndarray, box: tuple[int, int, int, int], rendered: bool
     sp = {c: spread(c) for c in top}
     wide = [c for c in top if sp[c] >= 0.5 * max(sp.values())] or top
     fill = min(wide, key=lambda c: (round(bg_contact(c), 1), -sp[c])) if bg_mask.any() else max(wide, key=lambda c: sp[c])
-    if rendered and max(sp.values()) < 0.2:
-        # small text with one- or two-pixel strokes on a rendered picture: no colour has solid strokes, and the
-        # ground seen inside the glyphs or a dark drop shadow is as enclosed as the letters. The letters are the
-        # colour that stands out most from the ground around the line.
-        bg0 = int(np.argmax(ring_share0))
-        far = lambda c: abs(float(centers[c][0] - centers[bg0][0])) + 0.5 * float(np.linalg.norm(centers[c][1:] - centers[bg0][1:]))  # noqa: E731
-        lit = [c for c in range(k) if enclosed[c] >= 0.05 * enclosed.max()]
-        best = max(far(c) for c in lit)
-        if best > 30:
-            fill = max((c for c in lit if far(c) >= 0.7 * best), key=lambda c: enclosed[c])
+    if rendered:
+        # small text on a rendered picture: with one- or two-pixel strokes no colour has solid strokes, and the ground
+        # seen inside the glyphs or a dark drop shadow is as enclosed as the letters. Letters never share the ground's
+        # colour, so when the pick does (or the strokes are that thin), the letters are the colour that stands out
+        # most from the ground around the line.
+        # the ground right behind the letters: inside the line's box, not enclosed by a glyph (a text box or panel
+        # behind the line counts, the page around it does not)
+        behind = lab3[inner & (enc_mask == -1)]
+        ground_lab = np.median(behind if len(behind) >= 20 else ring_px, axis=0)
+        far = lambda c: abs(float(centers[c][0] - ground_lab[0])) + 0.5 * float(np.linalg.norm(centers[c][1:] - ground_lab[1:]))  # noqa: E731
+        # a much brighter (or darker) enclosed colour beside a pick close to the ground: the pick is a drop shadow
+        louder = any(far(c) >= max(60, 3 * far(fill)) and enclosed[c] >= 0.3 * enclosed[fill] for c in range(k))
+        if max(sp.values()) < 0.2 or far(fill) < 25 or louder:
+            lit = [c for c in range(k) if enclosed[c] >= 0.05 * enclosed.max()]
+            best = max(far(c) for c in lit)
+            if best > 30:
+                cands = [c for c in lit if far(c) >= 0.7 * best]
+                most = max(enclosed[c] for c in cands)
+                # of the colours that make up most of the letters, the one furthest from the ground (not an
+                # anti-aliased blend between the two)
+                fill = max((c for c in cands if enclosed[c] >= 0.5 * most), key=far)
     bgr_of = lambda c: cv2.cvtColor(np.uint8([[centers[c]]]), cv2.COLOR_LAB2BGR)[0, 0]  # noqa: E731
     out: dict = {"fill": _hex(bgr_of(fill)), "fill_name": color_name(bgr_of(fill))}
     fm = (enc_mask == fill)
@@ -1548,6 +1559,54 @@ def fit_ass_sizes(path: Path) -> float | None:
     return round(k, 3)
 
 
+def _box_overlap(a: list, b: list, of: str = "smaller") -> float:
+    """Intersection of two (x, y, w, h) boxes over the smaller one (or the larger: both boxes cover the same place)."""
+    ix = min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0])
+    iy = min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1])
+    area = (min if of == "smaller" else max)(a[2] * a[3], b[2] * b[3])
+    return ix * iy / area if ix > 0 and iy > 0 and area > 0 else 0.0
+
+
+def _within(a: dict, b: dict) -> bool:
+    """Every line of a's text is also in b's (OCR reads one block of text as a whole and again line by line)."""
+    lines = [_norm(r) for r in a["text"].split("/") if _norm(r)]
+    whole = _norm(b["text"])
+    theirs = [_norm(r) for r in b["text"].split("/") if _norm(r)]
+    return bool(lines) and all(ln in whole or any(SequenceMatcher(None, ln, x).ratio() >= 0.8 for x in theirs) for ln in lines)
+
+
+def settle_cues(cues: list[dict], min_s: float = 0.15) -> list[dict]:
+    """Text layers ready to draw: one layer per piece of text on screen at a time. OCR reads a block of lines as a
+    whole and again line by line, and a line handing over to the next one in the same place overlaps it for a frame
+    or two; drawn as read, both show up on top of each other. A read whose lines all sit in a fuller read at the same
+    place gives way to it for as long as that one is on screen; of two different texts in the same place, the earlier
+    one ends where the later one starts (only when the two boxes cover the same place: a block read as one tall box
+    must not cut short the single lines beside it)."""
+    def size(c: dict) -> tuple:
+        return (len([r for r in c["text"].split("/") if _norm(r)]), len(_norm(c["text"])), c["t1"] - c["t0"])
+
+    order = {id(c): i for i, c in enumerate(cues)}
+    kept: list[dict] = []
+    for c in sorted(cues, key=size, reverse=True):
+        spans = [(c["t0"], c["t1"])]
+        for k in kept:
+            if _box_overlap(c["bbox"], k["bbox"]) < 0.3 or not _within(c, k):
+                continue
+            spans = [p for a, z in spans for p in ((a, min(z, k["t0"])), (max(a, k["t1"]), z)) if p[1] > p[0]]
+        for a, z in spans:
+            if z - a >= min_s:
+                kept.append({**c, "t0": a, "t1": z, "_i": order[id(c)], **({"anim_in": None} if a > c["t0"] + 1e-3 else {}),
+                             **({"anim_out": None} if z < c["t1"] - 1e-3 else {})})
+    kept.sort(key=lambda c: (c["t0"], c.pop("_i")))  # same start: keep the order they came in
+    for i, c in enumerate(kept):
+        for d in kept[i + 1:]:
+            if d["t0"] >= c["t1"]:
+                break
+            if d["t0"] > c["t0"] + min_s and _box_overlap(c["bbox"], d["bbox"], "larger") >= 0.5:
+                c["t1"], c["anim_out"] = d["t0"], None
+    return [c for c in kept if c["t1"] - c["t0"] >= min_s]
+
+
 def to_ass(cues: list[dict], width: int, height: int) -> str:
     """Subtitles + 花字 + titles + labels with their measured colours, size and position (\\pos), plus a \\fad / \\t
     pop for the measured entrance. Fonts are not measured: replace "Sans" with the real font."""
@@ -1556,9 +1615,7 @@ def to_ass(cues: list[dict], width: int, height: int) -> str:
             "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
             "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"]
     styles, events = {}, []
-    for c in sorted(cues, key=lambda c: c["t0"]):
-        if c["kind"] == "scene":
-            continue
+    for c in settle_cues([c for c in cues if c["kind"] != "scene" and c.get("bbox")]):
         st = c.get("style") or {}
         x, y, w, h = c["bbox"]
         rows = c["text"].split("/")

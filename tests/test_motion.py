@@ -132,3 +132,13 @@ def test_style_vote_ties_do_not_depend_on_hash_seed():
     outs = {subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                            env={**__import__("os").environ, "PYTHONHASHSEED": str(seed)}).stdout for seed in range(6)}
     assert len(outs) == 1 and "棕" in outs.pop()
+
+
+def test_thin_label_with_a_shadow_reads_as_its_letters():
+    """Small glowing labels on a rendered picture: one-pixel strokes and a dark drop shadow, on a dim coloured ground."""
+    f = np.zeros((120, 400, 3), np.uint8)
+    f[:] = (20, 40, 60)  # dim brown ground
+    cv2.putText(f, "STOMACH 22", (31, 71), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (5, 5, 5), 2, cv2.LINE_AA)  # shadow
+    cv2.putText(f, "STOMACH 22", (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 140), 1, cv2.LINE_AA)
+    st = text_style(f, (28, 52, 180, 76), rendered=True)
+    assert st and st["fill_name"] in ("青", "白", "cyan", "white"), st

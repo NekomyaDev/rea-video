@@ -286,3 +286,22 @@ def test_low_confidence_sfx_are_counted_as_possible():
     events = [{"t": 1.0, "type": "text_in", "what": "A", "ref": "text_001"}, {"t": 2.0, "type": "text_in", "what": "B", "ref": "text_002"}]
     al = align_sfx([{"t": 1.02, "source": "vlm"}, {"t": 2.01, "source": "deterministic_anchored", "confidence": "low"}], events)
     assert al["sfx_on"] == {"text_in": 1} and al["sfx_on_possible"] == {"text_in": 1}
+
+
+def test_settle_cues_draws_each_text_once():
+    def cue(text, t0, t1, box):
+        return {"kind": "label", "text": text, "t0": t0, "t1": t1, "bbox": box, "line_h": 0.04, "angle": 0.0, "style": {}}
+    block = [0.40, 0.66, 0.20, 0.13]
+    cues = [cue("第一站胃/STOMACH·胃酸很强", 1.0, 3.0, block),  # the block read whole
+            cue("STOMACH·胃酸很强", 0.5, 5.0, [0.40, 0.71, 0.20, 0.04]),  # and one of its lines on its own
+            cue("第一站胃", 6.0, 7.0, [0.45, 0.66, 0.08, 0.04]),
+            cue("肠壁上长满了绒毛", 10.0, 13.1, [0.38, 0.84, 0.24, 0.06]),  # a line handing over to the next in place
+            cue("药物从这里钻进血管", 13.0, 16.0, [0.37, 0.84, 0.27, 0.06]),
+            cue("SMALL INTESTINE", 10.0, 16.0, [0.39, 0.70, 0.21, 0.04])]  # a label above them stays
+    got = [(c["text"], c["t0"], c["t1"]) for c in P.settle_cues(cues)]
+    assert ("第一站胃/STOMACH·胃酸很强", 1.0, 3.0) in got
+    assert ("STOMACH·胃酸很强", 0.5, 1.0) in got and ("STOMACH·胃酸很强", 3.0, 5.0) in got  # gives way while the block shows
+    assert ("第一站胃", 6.0, 7.0) in got  # not on screen with the block: untouched
+    assert ("肠壁上长满了绒毛", 10.0, 13.0) in got and ("药物从这里钻进血管", 13.0, 16.0) in got
+    assert ("SMALL INTESTINE", 10.0, 16.0) in got
+    assert P.to_ass(cues, 960, 544).count("Dialogue:") == len(got)
