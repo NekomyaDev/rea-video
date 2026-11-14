@@ -95,6 +95,8 @@ rea-video summary out/ref/breakdown.json      # 用并入后的结果写回复
 
 ## 3. 复刻（需要时）
 
+用户要自己动手做时，先给报告「自己复刻」开头的「照着做」步骤（按视频类型排的顺序，内容全是这条原片的测量值），不要先讲模型规则和输入表。
+
 先跑 `rea-video remake out/ref`：能自动做的镜头先做掉（代码渲染重画、静图重建），其余原片占位，拼回原时间线，`remake/status.md` 逐镜写了还要做什么；拿到新镜头写进 `remake/mine.json` 再跑一次。细节见 `references/remake.md`；可用的工具和方式（capsule-cinema、ChatCut、自己动手）和各自的特点列在 `references/remake-tools.md`。在本工具里直接跑：AI 镜头走 capsule-cinema（会计费，先 `rea-video remake-run --dry-run` 并征得用户同意）；实拍给拍摄方案；代码渲染先跑 `rea-video code-remake out/ref` 出第一版（可改的工程 + 成片 + 打分），在它上面改，不要从零写；用户自己的素材用 `rea-video assemble` 拼回原时间线。代码渲染和用户自己的素材也可以在 ChatCut 里做。
 
 ## 参考文件

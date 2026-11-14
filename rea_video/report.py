@@ -11,7 +11,7 @@ import html
 import re
 from pathlib import Path
 
-from . import aspects, entities, narrative, performance
+from . import aspects, entities, narrative, performance, playbook
 from .classify import LABEL_ZH
 from .i18n import LangDict, T, join, lang, semi, shot_ids
 from .packaging import layer_name, anchor_text
@@ -459,7 +459,10 @@ def _plan_md(b: dict) -> list[str]:
     if parts.get("units"):
         steps.append(T("**AI 生成**：{c} 次生成，见下方「AI 生成」", "**Generate**: {c} generation{s}, see “AI generation” below",
                        c=plan.get("calls") or len(plan["units"]), s="" if (plan.get("calls") or 1) == 1 else "s"))
-        sub(T("AI 生成", "AI generation"), [f"**{plan['summary'].split(T('；', '; '))[0]}**", ""] + parts.get("pre", []) + parts["units"])
+        pre = parts.get("pre", [])
+        if pre:  # grouping rules, the model's prompt conventions, the input primer: needed when writing prompts, not to follow the steps
+            pre = ["", f'<details class="ref"><summary>{html.escape(T("写提示词前看：分组规则、模型写法、能喂哪些输入", "Before writing prompts: grouping, the model's conventions, what it takes as input"))}</summary>', ""] + pre + ["", "</details>", ""]
+        sub(T("AI 生成", "AI generation"), [f"**{plan['summary'].split(T('；', '; '))[0]}**", ""] + pre + parts["units"])
     for key, title, step in (("code", T("代码合成", "Code build"), T("**录屏和动效**：见下方「代码合成」", "**Screen and motion graphics**: see “Code build” below")),
                              ("local", T("本地重建", "Local rebuild"), T("**静帧 / 推拉**：见下方「本地重建」", "**Stills / moves**: see “Local rebuild” below")),
                              ("footage", T("影视原片", "Film / TV source"), T("**影视片段**：见下方「影视原片」", "**Film / TV clips**: see “Film / TV source” below"))):
@@ -482,9 +485,13 @@ def _plan_md(b: dict) -> list[str]:
         steps.append(T("**声音**：见「声音」，每处音效都能先试听", "**Sound**: see “Sound”; every effect can be played first"))
     steps.append(T("**对照检查**：成片和原片并排看一遍：镜头长短、字幕位置、音乐起落对不对得上",
                    "**Compare**: watch yours next to the original: shot lengths, subtitle positions, where the music comes in and drops"))
-    return (["", T("## 自己复刻：按这个顺序做", "## Remake it yourself: do it in this order"), "",
-             T("复刻的是做法和节奏，不是照抄画面。", "Copy the method and the rhythm, not the pictures."), ""]
-            + [f"{i}. {x}" for i, x in enumerate(steps, 1)] + subs)
+    head = ["", T("## 自己复刻：按这个顺序做", "## Remake it yourself: do it in this order"), "",
+            T("复刻的是做法和节奏，不是照抄画面：保留每一段在讲什么，换成自己的内容和素材。",
+              "Copy the method and the rhythm, not the pictures: keep what each part does and fill it with your own content and material."), ""]
+    guide = playbook.md(b)
+    if guide:
+        return head + guide + subs
+    return head + [f"{i}. {x}" for i, x in enumerate(steps, 1)] + subs
 
 
 def _acting_md(b: dict) -> list[str]:
@@ -865,6 +872,9 @@ def _remake_md(b: dict) -> list[str]:
     L = production_md(b.get("production_plan") or {})
     if not L:
         L = ["", T("## 复刻方案", "## Remake plan"), ""]
+    guide = playbook.md(b)
+    if guide:  # the hands-on steps for this kind of video, before the per-unit detail
+        L = L[:3] + [T("### 照着做", "### Step by step"), ""] + guide + L[3:]
     rm = s.get("real_material") or {}
     if rm.get("shots"):
         L += ["", T("### 画面里的真实素材（必须拿到原文件）", "### Real material in the picture (the original files are needed)"), "",
