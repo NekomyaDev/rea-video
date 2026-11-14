@@ -19,7 +19,7 @@ from . import redraw
 from .i18n import T
 from .layers import WORK_W, _boxes_at, _text_boxes, compare, layer_mask, scene_frames, shot_label
 from .media import extract_frame
-from .packaging import fit_ass_sizes
+from .packaging import fit_ass_sizes, to_ass
 from .plan import code_style
 from .util import read_json, write_json
 
@@ -44,7 +44,7 @@ def build_spec(out: Path) -> dict:
     shots = {s.get("index"): s for s in b.get("shots", [])}
     W, H = int(src.get("width") or 960), int(src.get("height") or 540)
     spec: dict = {"size": [W, H], "fps": float(src.get("fps") or 25), "duration": float(src.get("duration") or 0),
-                  "text": "overlays.ass" if (out / "packaging" / "overlays.ass").exists() else None,
+                  "text": "overlays.ass" if any(not c.get("part_of_picture") for c in (b.get("packaging") or {}).get("text_cues", [])) else None,
                   "bloom": 0.5, "bloom_size": 0.012, "scenes": []}
     for sc in scenes:
         m = sc.get("measure") or {}
@@ -123,9 +123,10 @@ def code_remake(out: Path, reset: bool = False, render: bool = True, score: bool
     spec_path = cdir / "spec.json"
     res: dict = {"dir": str(cdir), "spec": str(spec_path)}
     shutil.copyfile(redraw.__file__, cdir / "render.py")
-    ass = out / "packaging" / "overlays.ass"
-    if ass.exists() and (reset or not (cdir / "overlays.ass").exists()):
-        shutil.copyfile(ass, cdir / "overlays.ass")
+    cues = [c for c in (b.get("packaging") or {}).get("text_cues", []) if not c.get("part_of_picture")]
+    if cues and (reset or not (cdir / "overlays.ass").exists()):
+        src = b.get("source") or {}
+        (cdir / "overlays.ass").write_text(to_ass(cues, int(src.get("width") or 960), int(src.get("height") or 540)), encoding="utf-8")
         fit_ass_sizes(cdir / "overlays.ass")
     if reset or not spec_path.exists():
         spec = build_spec(out)
